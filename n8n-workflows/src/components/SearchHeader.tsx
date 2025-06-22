@@ -14,16 +14,18 @@ export function SearchHeader({ className }: SearchHeaderProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   
-  const [query, setQuery] = useState(searchParams.get('q') || '');
+  const [query, setQuery] = useState(searchParams?.get('q') || '');
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
-    category: searchParams.get('category') || '',
-    triggerType: searchParams.get('trigger') || '',
-    active: searchParams.get('active') || ''
+    category: searchParams?.get('category') || '',
+    triggerType: searchParams?.get('trigger') || '',
+    active: searchParams?.get('active') || ''
   });
 
   // Update URL when search changes
   useEffect(() => {
+    if (!searchParams) return;
+    
     const params = new URLSearchParams(searchParams);
     
     if (query) {

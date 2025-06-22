@@ -77,6 +77,8 @@ export function WorkflowBrowser() {
 
   // Apply filters and search when URL params change
   useEffect(() => {
+    if (!searchParams) return;
+    
     const query = searchParams.get('q') || '';
     const category = searchParams.get('category') || '';
     const trigger = searchParams.get('trigger') || '';
