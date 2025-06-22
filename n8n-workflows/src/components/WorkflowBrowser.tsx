@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, Grid, List } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import type { Workflow, WorkflowFilter } from '@/types/workflow';
 import { SortControls } from './SortControls';
 import { FilterSidebar } from './FilterSidebar';
 import { WorkflowCard } from './WorkflowCard';
+import { cn } from '@/lib/utils';
 
 // Mock data - this would normally come from your API
 const generateMockWorkflows = (count: number): Workflow[] => {
