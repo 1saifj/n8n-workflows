@@ -8,6 +8,32 @@ export const metadata = {
   description: 'Browse and explore 2,053 n8n workflow examples with advanced search and filtering',
 };
 
+// Loading components for Suspense fallbacks
+function SearchHeaderSkeleton() {
+  return (
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="relative">
+        <div className="w-full h-12 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse"></div>
+      </div>
+    </div>
+  );
+}
+
+function WorkflowBrowserSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-4">
+        <div className="w-64 h-96 bg-white dark:bg-slate-800 rounded-lg animate-pulse"></div>
+        <div className="flex-1 space-y-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-32 bg-white dark:bg-slate-800 rounded-lg animate-pulse"></div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HomePage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
@@ -25,8 +51,10 @@ export default function HomePage() {
               </p>
             </div>
             
-            {/* Search */}
-            <SearchHeader />
+            {/* Search - wrapped in Suspense */}
+            <Suspense fallback={<SearchHeaderSkeleton />}>
+              <SearchHeader />
+            </Suspense>
           </div>
         </div>
       </header>
@@ -48,19 +76,8 @@ export default function HomePage() {
             <StatsOverview />
           </Suspense>
 
-          {/* Workflow Browser */}
-          <Suspense fallback={
-            <div className="space-y-4">
-              <div className="flex gap-4">
-                <div className="w-64 h-96 bg-white dark:bg-slate-800 rounded-lg animate-pulse"></div>
-                <div className="flex-1 space-y-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="h-32 bg-white dark:bg-slate-800 rounded-lg animate-pulse"></div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          }>
+          {/* Workflow Browser - wrapped in Suspense */}
+          <Suspense fallback={<WorkflowBrowserSkeleton />}>
             <WorkflowBrowser />
           </Suspense>
         </div>
