@@ -85,7 +85,7 @@ export default function HomePage() {
               </a>
             </p>
           </div>
-        </div>
+      </div>
       </footer>
     </div>
   );
