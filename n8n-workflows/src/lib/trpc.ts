@@ -1,7 +1,4 @@
-import { createTRPCNext } from '@trpc/next';
-import { httpBatchLink } from '@trpc/client';
-import superjson from 'superjson';
-// import type { AppRouter } from '../server/api/router';
+import { useQuery } from '@tanstack/react-query';
 
 function getBaseUrl() {
   if (typeof window !== 'undefined') return ''; // browser should use relative url
@@ -9,27 +6,54 @@ function getBaseUrl() {
   return `http://localhost:${process.env.PORT ?? 3001}`; // dev SSR should use localhost
 }
 
-// TODO: Fix tRPC client configuration
-// export const trpc = createTRPCNext<AppRouter>({
-//   config() {
-//     return {
-//       transformer: superjson,
-//       links: [
-//         httpBatchLink({
-//           url: `${getBaseUrl()}/api/trpc`,
-//         }),
-//       ],
-//     };
-//   },
-//   ssr: false,
-// });
+// Helper function to make tRPC calls
+async function trpcCall(procedure: string, input?: any) {
+  const url = `${getBaseUrl()}/api/trpc/${procedure}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ input: input || {} }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`tRPC call failed: ${response.statusText}`);
+  }
+  
+  const data = await response.json();
+  return data.result?.data || data;
+}
 
-// Temporary stub for development
+// React Query-based tRPC client
 export const trpc = {
   workflows: {
-    getStats: () => ({ data: null, isLoading: false, error: null }),
-    searchWorkflows: () => ({ data: null, isLoading: false, error: null }),
-    getWorkflowDetail: () => ({ data: null, isLoading: false, error: null }),
-    getIntegrations: () => ({ data: null, isLoading: false, error: null }),
-  }
+    getAll: (input?: any) => useQuery({
+      queryKey: ['workflows.getAll', input],
+      queryFn: () => trpcCall('workflows.getAll', input),
+    }),
+    getStats: () => useQuery({
+      queryKey: ['workflows.getStats'],
+      queryFn: () => trpcCall('workflows.getStats'),
+    }),
+    searchWorkflows: (input: any) => useQuery({
+      queryKey: ['workflows.searchWorkflows', input],
+      queryFn: () => trpcCall('workflows.searchWorkflows', input),
+      enabled: !!input,
+    }),
+    getWorkflowDetail: (input: { filename: string }) => useQuery({
+      queryKey: ['workflows.getWorkflowDetail', input],
+      queryFn: () => trpcCall('workflows.getWorkflowDetail', input),
+      enabled: !!input.filename,
+    }),
+    getIntegrations: () => useQuery({
+      queryKey: ['workflows.getIntegrations'],
+      queryFn: () => trpcCall('workflows.getIntegrations'),
+    }),
+    getByCategory: (input: any) => useQuery({
+      queryKey: ['workflows.getByCategory', input],
+      queryFn: () => trpcCall('workflows.getByCategory', input),
+      enabled: !!input?.category,
+    }),
+  },
 }; 

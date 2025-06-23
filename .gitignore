@@ -100,9 +100,6 @@ dev-debug.log
 *.sw?
 # OS specific
 
-# Task files
-# tasks.json
-# tasks/ 
 AGENTS.md 
 .roomodes
 CLAUDE.md
@@ -116,3 +113,7 @@ CLAUDE.md
 n8n-workflows/node_modules/
 n8n-workflows/.next/
 n8n-workflows/package-lock.json
+
+# Task files
+# tasks.json
+# tasks/ 

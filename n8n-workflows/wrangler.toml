@@ -1,0 +1,60 @@
+name = "n8n-workflows-gallery"
+compatibility_date = "2024-06-23"
+
+# Cloudflare Pages configuration
+pages_build_output_dir = ".next"
+
+# Environment variables for production
+[env.production]
+NODE_ENV = "production"
+DATABASE_URL = "file:./local.db"
+
+# D1 Database binding for production
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "n8n-workflows-db"
+database_id = "your-d1-database-id" # Replace with actual D1 database ID
+
+# Preview environment
+[env.preview]
+NODE_ENV = "preview"
+DATABASE_URL = "file:./local.db"
+
+# D1 Database binding for preview
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "n8n-workflows-db-preview"
+database_id = "your-preview-d1-database-id" # Replace with actual preview D1 database ID
+
+# Compatibility flags
+compatibility_flags = ["nodejs_compat"]
+
+# Build configuration
+[build]
+command = "npm run build"
+watch_dir = "src"
+
+# Pages configuration
+[pages]
+build_command = "npm run build"
+build_output_dir = ".next"
+
+# Custom headers for static assets
+[[headers]]
+for = "/static/*"
+[headers.values]
+"Cache-Control" = "public, max-age=31536000, immutable"
+
+[[headers]]
+for = "/_next/static/*"
+[headers.values]
+"Cache-Control" = "public, max-age=31536000, immutable"
+
+# Security headers
+[[headers]]
+for = "/*"
+[headers.values]
+"X-Frame-Options" = "DENY"
+"X-Content-Type-Options" = "nosniff"
+"Referrer-Policy" = "strict-origin-when-cross-origin"
+"Permissions-Policy" = "camera=(), microphone=(), geolocation=()" 

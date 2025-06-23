@@ -1,252 +1,293 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Loader2, Grid, List } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import type { Workflow, WorkflowFilter } from '@/types/workflow';
-import { SortControls } from './SortControls';
-import { FilterSidebar } from './FilterSidebar';
-import { WorkflowCard } from './WorkflowCard';
+import { useState } from 'react';
+import { trpc } from '@/lib/trpc';
+import { Search, Filter, Activity, Calendar, Zap, Layers, ExternalLink, Download } from 'lucide-react';
 
-// Mock data - this would normally come from your API
-const generateMockWorkflows = (count: number): Workflow[] => {
-  const categories = ['Communication', 'Database', 'CRM', 'Analytics', 'Social Media', 'Productivity'];
-  const triggerTypes = ['webhook', 'scheduled', 'triggered', 'manual'];
-  const nodeTypes = ['Slack', 'Gmail', 'MySQL', 'HubSpot', 'Twitter', 'Notion', 'HTTP Request', 'Code'];
-  
-  return Array.from({ length: count }, (_, i) => {
-    const numNodes = Math.floor(Math.random() * 20) + 3;
-    const randomCategory = categories[Math.floor(Math.random() * categories.length)];
-    const randomTrigger = triggerTypes[Math.floor(Math.random() * triggerTypes.length)];
-    
-    return {
-      id: i + 1,
-      filename: `${i + 1}_${randomCategory.toLowerCase().replace(' ', '_')}_workflow.json`,
-      name: `${randomCategory} Integration ${i + 1}`,
-      nodes: Array.from({ length: numNodes }, (_, nodeIndex) => ({
-        id: `node_${nodeIndex}`,
-        type: nodeTypes[Math.floor(Math.random() * nodeTypes.length)],
-        typeVersion: 1,
-        position: [Math.random() * 400, Math.random() * 300] as [number, number],
-        parameters: {},
-        name: `Node ${nodeIndex + 1}`
-      })),
-      connections: {},
-      tags: [randomCategory, `${numNodes} nodes`],
-      active: Math.random() > 0.3,
-      createdAt: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-      updatedAt: new Date(Date.now() - Math.random() * 1000000000).toISOString(),
-      triggerCount: Math.floor(Math.random() * 3) + 1,
-      regularNodeCount: numNodes - 1
-    };
-  });
-};
+// Types
+interface WorkflowCardProps {
+  workflow: {
+    id: number;
+    filename: string;
+    name: string;
+    description: string;
+    active: boolean;
+    triggerType: string;
+    complexity: string;
+    nodeCount: number;
+    integrations: string[];
+    tags: string[];
+    createdAt: string;
+  };
+}
 
-type ViewMode = 'grid' | 'list';
-type SortOption = 'name' | 'updated' | 'nodes' | 'created';
-
-export function WorkflowBrowser() {
-  const searchParams = useSearchParams();
-  const [workflows, setWorkflows] = useState<Workflow[]>([]);
-  const [filteredWorkflows, setFilteredWorkflows] = useState<Workflow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [sortBy, setSortBy] = useState<SortOption>('updated');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  // Load workflows on mount
-  useEffect(() => {
-    const loadWorkflows = async () => {
-      setLoading(true);
-      try {
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        const mockWorkflows = generateMockWorkflows(50);
-        setWorkflows(mockWorkflows);
-        setFilteredWorkflows(mockWorkflows);
-      } catch (error) {
-        console.error('Error loading workflows:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadWorkflows();
-  }, []);
-
-  // Apply filters and search when URL params change
-  useEffect(() => {
-    if (!searchParams) return;
-    
-    const query = searchParams.get('q') || '';
-    const category = searchParams.get('category') || '';
-    const trigger = searchParams.get('trigger') || '';
-    const active = searchParams.get('active') || '';
-
-    let filtered = workflows;
-
-    // Apply search query
-    if (query) {
-      const searchTerm = query.toLowerCase();
-      filtered = filtered.filter(workflow => 
-        workflow.name.toLowerCase().includes(searchTerm) ||
-        workflow.filename.toLowerCase().includes(searchTerm) ||
-        workflow.nodes.some(node => node.type.toLowerCase().includes(searchTerm)) ||
-        workflow.tags?.some(tag => tag.toLowerCase().includes(searchTerm))
-      );
+// Modern Workflow Card Component
+const WorkflowCard = ({ workflow }: WorkflowCardProps) => {
+  const getComplexityColor = (complexity: string) => {
+    switch (complexity) {
+      case 'simple': return 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400';
+      case 'complex': return 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400';
     }
-
-    // Apply category filter
-    if (category) {
-      filtered = filtered.filter(workflow =>
-        workflow.tags?.includes(category)
-      );
-    }
-
-    // Apply trigger filter
-    if (trigger) {
-      filtered = filtered.filter(workflow => {
-        const triggerType = determineTriggerType(workflow.filename);
-        return triggerType === trigger;
-      });
-    }
-
-    // Apply active status filter
-    if (active) {
-      filtered = filtered.filter(workflow => 
-        workflow.active === (active === 'true')
-      );
-    }
-
-    // Apply sorting
-    filtered = [...filtered].sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortBy) {
-        case 'name':
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case 'updated':
-          comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-          break;
-        case 'created':
-          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-          break;
-        case 'nodes':
-          comparison = a.nodes.length - b.nodes.length;
-          break;
-      }
-      
-      return sortOrder === 'desc' ? -comparison : comparison;
-    });
-
-    setFilteredWorkflows(filtered);
-  }, [workflows, searchParams, sortBy, sortOrder]);
-
-  const determineTriggerType = (filename: string): string => {
-    const lower = filename.toLowerCase();
-    if (lower.includes('webhook')) return 'webhook';
-    if (lower.includes('scheduled') || lower.includes('cron')) return 'scheduled';
-    if (lower.includes('triggered')) return 'triggered';
-    return 'manual';
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-slate-600 dark:text-slate-400">
-          Loading workflows...
-        </span>
-      </div>
-    );
-  }
+  const getTriggerIcon = (triggerType: string) => {
+    switch (triggerType) {
+      case 'webhook': return <Zap size={16} />;
+      case 'scheduled': return <Calendar size={16} />;
+      case 'polling': return <Activity size={16} />;
+      default: return <Activity size={16} />;
+    }
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Controls */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        {/* Results count */}
-        <div className="text-sm text-slate-600 dark:text-slate-400">
-          Showing {filteredWorkflows.length} of {workflows.length} workflows
+    <div className="group relative overflow-hidden rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-white/20 dark:border-slate-700/50 p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02]">
+      {/* Glass effect overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-white/40 to-transparent dark:from-slate-700/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+      
+      {/* Content */}
+      <div className="relative">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-1">
+            <h3 className="font-semibold text-slate-900 dark:text-white text-lg leading-tight mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+              {workflow.name}
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 line-clamp-2">
+              {workflow.description}
+            </p>
+          </div>
+          <div className={`ml-3 px-2 py-1 rounded-full text-xs font-medium ${getComplexityColor(workflow.complexity)}`}>
+            {workflow.complexity}
+          </div>
         </div>
 
-        {/* View and Sort Controls */}
-        <div className="flex items-center gap-4">
-          {/* Sort Controls */}
-          <SortControls
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSortChange={setSortBy}
-            onOrderChange={setSortOrder}
-          />
+        {/* Metadata */}
+        <div className="flex items-center gap-4 mb-4 text-sm text-slate-600 dark:text-slate-400">
+          <div className="flex items-center gap-1">
+            {getTriggerIcon(workflow.triggerType)}
+            <span className="capitalize">{workflow.triggerType}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Layers size={16} />
+            <span>{workflow.nodeCount} nodes</span>
+          </div>
+          <div className={`flex items-center gap-1 ${workflow.active ? 'text-green-600 dark:text-green-400' : 'text-gray-500'}`}>
+            <div className={`w-2 h-2 rounded-full ${workflow.active ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+            <span>{workflow.active ? 'Active' : 'Inactive'}</span>
+          </div>
+        </div>
 
-          {/* View Mode Toggle */}
-          <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                'p-2 rounded-md transition-colors',
-                viewMode === 'grid'
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              )}
-              title="Grid view"
-            >
-              <Grid className="h-4 w-4" />
+        {/* Integrations */}
+        <div className="mb-4">
+          <div className="flex flex-wrap gap-1">
+            {workflow.integrations.slice(0, 4).map((integration, index) => (
+              <span
+                key={index}
+                className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 text-xs rounded-full"
+              >
+                {integration}
+              </span>
+            ))}
+            {workflow.integrations.length > 4 && (
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-full">
+                +{workflow.integrations.length - 4} more
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
+            {workflow.filename}
+          </span>
+          <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <button className="p-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors">
+              <ExternalLink size={16} />
             </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={cn(
-                'p-2 rounded-md transition-colors',
-                viewMode === 'list'
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400'
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              )}
-              title="List view"
-            >
-              <List className="h-4 w-4" />
+            <button className="p-2 rounded-lg bg-green-500 hover:bg-green-600 text-white transition-colors">
+              <Download size={16} />
             </button>
           </div>
         </div>
       </div>
+    </div>
+  );
+};
 
-      {/* Main Content */}
-      <div className="flex gap-6">
-        {/* Sidebar Filters */}
-        <FilterSidebar workflows={filteredWorkflows} />
+// Filter Component
+const FilterControls = ({ 
+  filters, 
+  onFiltersChange 
+}: { 
+  filters: any; 
+  onFiltersChange: (filters: any) => void;
+}) => (
+  <div className="flex flex-wrap gap-4 p-4 rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-white/20 dark:border-slate-700/50">
+    {/* Trigger Type Filter */}
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        Trigger Type
+      </label>
+      <select
+        value={filters.triggerType}
+        onChange={(e) => onFiltersChange({ ...filters, triggerType: e.target.value })}
+        className="px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+        <option value="all">All Types</option>
+        <option value="webhook">Webhook</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="polling">Polling</option>
+        <option value="manual">Manual</option>
+      </select>
+    </div>
 
-        {/* Workflow Grid/List */}
-        <div className="flex-1">
-          {filteredWorkflows.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-slate-400 dark:text-slate-500 mb-2">
-                <Grid className="h-12 w-12 mx-auto" />
-              </div>
-              <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
-                No workflows found
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-                Try adjusting your search terms or filters to find what you're looking for.
-              </p>
-            </div>
-          ) : (
-            <div className={cn(
-              viewMode === 'grid' 
-                ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
-                : 'space-y-4'
-            )}>
-              {filteredWorkflows.map((workflow) => (
-                <WorkflowCard
-                  key={workflow.id}
-                  workflow={workflow}
-                  viewMode={viewMode}
-                />
-              ))}
-            </div>
+    {/* Complexity Filter */}
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        Complexity
+      </label>
+      <select
+        value={filters.complexity}
+        onChange={(e) => onFiltersChange({ ...filters, complexity: e.target.value })}
+        className="px-3 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      >
+        <option value="all">All Levels</option>
+        <option value="simple">Simple</option>
+        <option value="medium">Medium</option>
+        <option value="complex">Complex</option>
+      </select>
+    </div>
+
+    {/* Active Only Toggle */}
+    <div className="flex flex-col gap-2">
+      <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        Status
+      </label>
+      <label className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={filters.activeOnly}
+          onChange={(e) => onFiltersChange({ ...filters, activeOnly: e.target.checked })}
+          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        />
+        <span className="text-sm text-slate-600 dark:text-slate-400">Active only</span>
+      </label>
+    </div>
+  </div>
+);
+
+// Main WorkflowBrowser Component
+export function WorkflowBrowser() {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filters, setFilters] = useState({
+    triggerType: 'all',
+    complexity: 'all',
+    activeOnly: false,
+  });
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Build search input for tRPC
+  const searchInput = {
+    query: searchQuery,
+    ...filters,
+  };
+
+  const { data: searchResults, isLoading, error } = trpc.workflows.searchWorkflows(searchInput);
+
+  return (
+    <div className="space-y-6">
+      {/* Search Header */}
+      <div className="space-y-4">
+        {/* Search Bar */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={20} />
+          <input
+            type="text"
+            placeholder="Search workflows by name, description, or integration..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-12 py-4 text-lg rounded-xl bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border border-white/20 dark:border-slate-700/50 focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-slate-400 dark:placeholder-slate-500"
+          />
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`absolute right-3 top-1/2 transform -translate-y-1/2 p-2 rounded-lg transition-colors ${
+              showFilters 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
+            }`}
+          >
+            <Filter size={20} />
+          </button>
+        </div>
+
+        {/* Filters */}
+        {showFilters && (
+          <FilterControls filters={filters} onFiltersChange={setFilters} />
+        )}
+
+        {/* Results Summary */}
+        <div className="flex items-center justify-between text-sm text-slate-600 dark:text-slate-400">
+          <div>
+            {isLoading ? (
+              'Loading workflows...'
+            ) : searchResults ? (
+              `Found ${searchResults.workflows.length} workflows`
+            ) : (
+              'No results'
+            )}
+          </div>
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery('')}
+              className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Clear search
+            </button>
           )}
         </div>
+      </div>
+
+      {/* Results */}
+      <div>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm rounded-xl p-6 animate-pulse">
+                <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded mb-3"></div>
+                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
+                <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded mb-4"></div>
+                <div className="flex gap-2 mb-4">
+                  <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                  <div className="h-6 w-16 bg-slate-200 dark:bg-slate-700 rounded-full"></div>
+                </div>
+                <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded"></div>
+              </div>
+            ))}
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-6 text-center">
+            <p className="text-red-600 dark:text-red-400">Failed to load workflows</p>
+          </div>
+        ) : searchResults?.workflows.length === 0 ? (
+          <div className="bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-12 text-center">
+            <Search className="mx-auto text-slate-400 mb-4" size={48} />
+            <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100 mb-2">
+              No workflows found
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400">
+              Try adjusting your search terms or filters
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {searchResults?.workflows.map((workflow: any) => (
+              <WorkflowCard key={workflow.id} workflow={workflow} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
